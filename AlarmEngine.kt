@@ -164,11 +164,11 @@ object AlarmScheduler {
     private fun buildPendingIntent(ctx: Context, alarm: AlarmData): PendingIntent {
         val intent = Intent(ctx, AlarmReceiver::class.java).apply {
             action = ACTION_TRIGGERED
-            putExtra("alarm_id",      alarm.id)
-            putExtra("use_vib",       alarm.useVibration)
-            putExtra("ringtone_uri",  alarm.ringtoneUri ?: "")
-            putExtra("label",         alarm.label)
-            putExtra("repeat_days",   alarm.repeatDays.toIntArray())
+            putExtra("alarm_id",     alarm.id)
+            putExtra("use_vib",      alarm.useVibration)
+            putExtra("ringtone_uri", alarm.ringtoneUri ?: "")
+            putExtra("label",        alarm.label)
+            putExtra("repeat_days",  alarm.repeatDays.toIntArray())
         }
         return PendingIntent.getBroadcast(
             ctx, alarm.id, intent,
@@ -185,11 +185,11 @@ class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         when (intent.action) {
             AlarmScheduler.ACTION_TRIGGERED -> {
-                val id         = intent.getIntExtra("alarm_id", -1)
-                val useVib     = intent.getBooleanExtra("use_vib", false)
-                val ringtoneUri= intent.getStringExtra("ringtone_uri") ?: ""
-                val label      = intent.getStringExtra("label") ?: ""
-                val repeatDays = intent.getIntArrayExtra("repeat_days")?.toSet() ?: emptySet()
+                val id          = intent.getIntExtra("alarm_id", -1)
+                val useVib      = intent.getBooleanExtra("use_vib", false)
+                val ringtoneUri = intent.getStringExtra("ringtone_uri") ?: ""
+                val label       = intent.getStringExtra("label") ?: ""
+                val repeatDays  = intent.getIntArrayExtra("repeat_days")?.toSet() ?: emptySet()
 
                 if (id != -1) {
                     val alarms = AlarmStore.loadAll(ctx)
@@ -258,16 +258,16 @@ class AlarmRingingService : Service() {
 
             startForeground(id, buildNotification(label, id))
 
-            val am             = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            val deviceConnected = am.isWiredHeadsetOn ||
-                                  am.isBluetoothA2dpOn ||
-                                  am.isBluetoothScoOn
+            val am          = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val connected   = am.isWiredHeadsetOn ||
+                              am.isBluetoothA2dpOn ||
+                              am.isBluetoothScoOn
 
-            if (deviceConnected) {
+            if (connected) {
                 startAudio(ringtoneUri)
                 if (useVib) startVibration()
             } else {
-                // Fallback: no device connected — vibrate always
+                // No device connected — always vibrate as fallback
                 startVibration()
             }
 
@@ -288,14 +288,13 @@ class AlarmRingingService : Service() {
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
                 try {
                     setDataSource(this@AlarmRingingService, uri)
                 } catch (e: Exception) {
-                    // Custom file gone — fall back to default
                     val fallback = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                     setDataSource(this@AlarmRingingService, fallback)
                 }
@@ -309,6 +308,7 @@ class AlarmRingingService : Service() {
     }
 
     private fun startVibration() {
+        if (vibrator != null) return // already vibrating
         vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
         } else {
