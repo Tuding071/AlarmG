@@ -1,4 +1,4 @@
-name: Build AlarmG
+name: Build AlarmSilent
 
 on:
   push:
@@ -39,7 +39,7 @@ jobs:
         env:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
-          PKG=app/src/main/java/com/alarmg/app
+          PKG=app/src/main/java/com/alarmsilent/app
           mkdir -p $PKG
           mkdir -p app/src/main/res/values
           mkdir -p gradle/wrapper
@@ -55,7 +55,7 @@ jobs:
               repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
               repositories { google(); mavenCentral() }
           }
-          rootProject.name = "AlarmG"
+          rootProject.name = "AlarmSilent"
           include(":app")
           EOF
 
@@ -75,11 +75,11 @@ jobs:
           }
 
           android {
-              namespace  = "com.alarmg.app"
+              namespace  = "com.alarmsilent.app"
               compileSdk = 36
 
               defaultConfig {
-                  applicationId = "com.alarmg.app"
+                  applicationId = "com.alarmsilent.app"
                   minSdk        = 26
                   targetSdk     = 36
                   versionCode   = ${BUILD_NUMBER}
@@ -186,8 +186,8 @@ jobs:
                       android:name=".AlarmReceiver"
                       android:exported="true">
                       <intent-filter>
-                          <action android:name="com.alarmg.app.ALARM_TRIGGERED"/>
-                          <action android:name="com.alarmg.app.ALARM_STOPPED"/>
+                          <action android:name="com.alarmsilent.app.ALARM_TRIGGERED"/>
+                          <action android:name="com.alarmsilent.app.ALARM_STOPPED"/>
                           <action android:name="android.intent.action.BOOT_COMPLETED"/>
                       </intent-filter>
                   </receiver>
@@ -202,7 +202,7 @@ jobs:
           EOF
 
           cat > app/src/main/res/values/strings.xml << 'EOF'
-          <resources><string name="app_name">AlarmG</string></resources>
+          <resources><string name="app_name">AlarmSilent</string></resources>
           EOF
 
           cat > app/src/main/res/values/themes.xml << 'EOF'
@@ -223,7 +223,7 @@ jobs:
             -alias dummy \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass password -keypass password \
-            -dname "CN=Dummy,OU=AlarmG,O=AlarmG,L=Test,S=Test,C=US"
+            -dname "CN=Dummy,OU=AlarmSilent,O=AlarmSilent,L=Test,S=Test,C=US"
 
       - name: Generate launcher icons
         run: |
@@ -233,11 +233,11 @@ jobs:
           from PIL import Image, ImageDraw
           import math, os
 
-          BG     = (18,  18,  18,  255)
-          RING   = (80,  80,  85,  255)
-          FACE   = (38,  38,  40,  255)
-          HANDS  = (238, 238, 240, 255)
-          BELL   = (130, 130, 135, 255)
+          BG    = (18,  18,  18,  255)
+          RING  = (80,  80,  85,  255)
+          FACE  = (38,  38,  40,  255)
+          HANDS = (238, 238, 240, 255)
+          BELL  = (130, 130, 135, 255)
 
           def make_icon(size, circle=False):
               img = Image.new('RGBA', (size, size), (0,0,0,0))
@@ -247,38 +247,25 @@ jobs:
               else:
                   r = size // 6
                   d.rounded_rectangle([0,0,size-1,size-1], radius=r, fill=BG)
-
               cx, cy = size//2, size//2
-
-              # Bell bumps
               br     = max(3, size//14)
               bump_y = cy - int(size*0.29)
               for bx in [cx - int(size*0.19), cx + int(size*0.19)]:
                   d.ellipse([bx-br, bump_y-br, bx+br, bump_y+br], fill=BELL)
-
-              # Outer ring
               cr = int(size*0.31)
               d.ellipse([cx-cr, cy-cr, cx+cr, cy+cr], fill=RING)
-
-              # Face
               fr = int(cr*0.83)
               d.ellipse([cx-fr, cy-fr, cx+fr, cy+fr], fill=FACE)
-
-              # Hour hand ~10
               hw = max(2, size//26)
               ah = math.radians(-120)
               hr = int(fr*0.50)
-              d.line([cx, cy, cx+int(hr*math.cos(ah)), cy+int(hr*math.sin(ah))], fill=HANDS, width=hw)
-
-              # Minute hand ~12
+              d.line([cx,cy, cx+int(hr*math.cos(ah)), cy+int(hr*math.sin(ah))], fill=HANDS, width=hw)
               mw = max(1, size//38)
               am = math.radians(-90)
               mr = int(fr*0.68)
-              d.line([cx, cy, cx+int(mr*math.cos(am)), cy+int(mr*math.sin(am))], fill=HANDS, width=mw)
-
-              # Center dot
+              d.line([cx,cy, cx+int(mr*math.cos(am)), cy+int(mr*math.sin(am))], fill=HANDS, width=mw)
               dot = max(2, size//20)
-              d.ellipse([cx-dot, cy-dot, cx+dot, cy+dot], fill=BELL)
+              d.ellipse([cx-dot,cy-dot, cx+dot,cy+dot], fill=BELL)
               return img
 
           sizes = {'mdpi':48,'hdpi':72,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}
@@ -305,7 +292,7 @@ jobs:
         run: |
           APK=app/build/outputs/apk/release/app-arm64-v8a-release.apk
           if [ -f "$APK" ]; then
-            echo "✅ APK built: $(ls -lh $APK | awk '{print $5}')"
+            echo "✅ APK: $(ls -lh $APK | awk '{print $5}')"
             $ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs "$APK"
           else
             echo "❌ APK not found"; exit 1
@@ -313,21 +300,21 @@ jobs:
 
       - name: Bundle release
         run: |
-          mkdir -p AlarmG-release
-          cp app/build/outputs/apk/release/app-arm64-v8a-release.apk AlarmG-release/AlarmG.apk
-          cp AlarmEngine.kt AlarmG-release/
-          cp AlarmUI.kt     AlarmG-release/
-          cp .github/workflows/build.yml AlarmG-release/
-          cat > AlarmG-release/BUILD_INFO.txt << EOF
-          Build:     #${{ github.run_number }}
-          Commit:    ${{ github.sha }}
-          Time:      $(date -u '+%Y-%m-%d %H:%M UTC')
-          APK Size:  $(ls -lh app/build/outputs/apk/release/app-arm64-v8a-release.apk | awk '{print $5}')
+          mkdir -p AlarmSilent-release
+          cp app/build/outputs/apk/release/app-arm64-v8a-release.apk AlarmSilent-release/AlarmSilent.apk
+          cp AlarmEngine.kt AlarmSilent-release/
+          cp AlarmUI.kt     AlarmSilent-release/
+          cp .github/workflows/build.yml AlarmSilent-release/
+          cat > AlarmSilent-release/BUILD_INFO.txt << EOF
+          Build:    #${{ github.run_number }}
+          Commit:   ${{ github.sha }}
+          Time:     $(date -u '+%Y-%m-%d %H:%M UTC')
+          APK Size: $(ls -lh app/build/outputs/apk/release/app-arm64-v8a-release.apk | awk '{print $5}')
           EOF
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AlarmG-${{ github.run_number }}
-          path: AlarmG-release/
+          name: AlarmSilent-${{ github.run_number }}
+          path: AlarmSilent-release/
           retention-days: 30
