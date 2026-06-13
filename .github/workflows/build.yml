@@ -1,1 +1,333 @@
-1
+name: Build AlarmG
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'AlarmEngine.kt'
+      - 'AlarmUI.kt'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set Android SDK path
+        run: echo "sdk.dir=/usr/local/lib/android/sdk" > local.properties
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Generate project structure
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          PKG=app/src/main/java/com/alarmg/app
+          mkdir -p $PKG
+          mkdir -p app/src/main/res/values
+          mkdir -p gradle/wrapper
+
+          cp AlarmEngine.kt $PKG/
+          cp AlarmUI.kt     $PKG/
+
+          cat > settings.gradle.kts << 'EOF'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "AlarmG"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts << 'EOF'
+          plugins {
+              id("com.android.application")             version "8.9.1" apply false
+              id("org.jetbrains.kotlin.android")        version "2.2.0" apply false
+              id("org.jetbrains.kotlin.plugin.compose") version "2.2.0" apply false
+          }
+          EOF
+
+          cat > app/build.gradle.kts << EOF
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+              id("org.jetbrains.kotlin.plugin.compose")
+          }
+
+          android {
+              namespace  = "com.alarmg.app"
+              compileSdk = 36
+
+              defaultConfig {
+                  applicationId = "com.alarmg.app"
+                  minSdk        = 26
+                  targetSdk     = 36
+                  versionCode   = ${BUILD_NUMBER}
+                  versionName   = "${BUILD_NUMBER}"
+              }
+
+              signingConfigs {
+                  create("release") {
+                      storeFile     = file("dummy.keystore")
+                      storePassword = "password"
+                      keyAlias      = "dummy"
+                      keyPassword   = "password"
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled   = false
+                      isShrinkResources = false
+                      signingConfig     = signingConfigs.getByName("release")
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions { jvmTarget = "17" }
+              buildFeatures { compose = true }
+
+              splits {
+                  abi {
+                      isEnable       = true
+                      reset()
+                      include("arm64-v8a")
+                      isUniversalApk = false
+                  }
+              }
+          }
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.15.0")
+              implementation("androidx.activity:activity-compose:1.10.1")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.0")
+              implementation("androidx.core:core:1.15.0")
+
+              val bom = platform("androidx.compose:compose-bom:2025.05.00")
+              implementation(bom)
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.ui:ui-graphics")
+              implementation("androidx.compose.foundation:foundation")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.material:material-icons-extended")
+              implementation("androidx.compose.animation:animation")
+          }
+          EOF
+
+          cat > gradle.properties << 'EOF'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -XX:+UseParallelGC
+          kotlin.code.style=official
+          android.suppressUnsupportedCompileSdk=36
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.VIBRATE"/>
+              <uses-permission android:name="android.permission.WAKE_LOCK"/>
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+              <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+              <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+              <uses-permission android:name="android.permission.BLUETOOTH"/>
+              <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+
+              <application
+                  android:allowBackup="false"
+                  android:label="@string/app_name"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:theme="@style/AppTheme"
+                  android:hardwareAccelerated="true">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="portrait"
+                      android:configChanges="orientation|screenSize|keyboardHidden"
+                      android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+
+                  <receiver
+                      android:name=".AlarmReceiver"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="com.alarmg.app.ALARM_TRIGGERED"/>
+                          <action android:name="com.alarmg.app.ALARM_STOPPED"/>
+                          <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                      </intent-filter>
+                  </receiver>
+
+                  <service
+                      android:name=".AlarmRingingService"
+                      android:exported="false"
+                      android:foregroundServiceType="mediaPlayback"/>
+
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <resources><string name="app_name">AlarmG</string></resources>
+          EOF
+
+          cat > app/src/main/res/values/themes.xml << 'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+                  <item name="android:windowBackground">#121212</item>
+                  <item name="android:statusBarColor">#121212</item>
+                  <item name="android:navigationBarColor">#121212</item>
+                  <item name="android:windowLightStatusBar">false</item>
+              </style>
+          </resources>
+          EOF
+
+      - name: Generate dummy keystore
+        run: |
+          keytool -genkey -v \
+            -keystore app/dummy.keystore \
+            -alias dummy \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass password -keypass password \
+            -dname "CN=Dummy,OU=AlarmG,O=AlarmG,L=Test,S=Test,C=US"
+
+      - name: Generate launcher icons
+        run: |
+          rm -rf app/src/main/res/mipmap-*
+          pip install Pillow --quiet
+          python3 << 'PYEOF'
+          from PIL import Image, ImageDraw
+          import math, os
+
+          BG     = (18,  18,  18,  255)
+          RING   = (80,  80,  85,  255)
+          FACE   = (38,  38,  40,  255)
+          HANDS  = (238, 238, 240, 255)
+          BELL   = (130, 130, 135, 255)
+
+          def make_icon(size, circle=False):
+              img = Image.new('RGBA', (size, size), (0,0,0,0))
+              d   = ImageDraw.Draw(img)
+              if circle:
+                  d.ellipse([0,0,size-1,size-1], fill=BG)
+              else:
+                  r = size // 6
+                  d.rounded_rectangle([0,0,size-1,size-1], radius=r, fill=BG)
+
+              cx, cy = size//2, size//2
+
+              # Bell bumps
+              br     = max(3, size//14)
+              bump_y = cy - int(size*0.29)
+              for bx in [cx - int(size*0.19), cx + int(size*0.19)]:
+                  d.ellipse([bx-br, bump_y-br, bx+br, bump_y+br], fill=BELL)
+
+              # Outer ring
+              cr = int(size*0.31)
+              d.ellipse([cx-cr, cy-cr, cx+cr, cy+cr], fill=RING)
+
+              # Face
+              fr = int(cr*0.83)
+              d.ellipse([cx-fr, cy-fr, cx+fr, cy+fr], fill=FACE)
+
+              # Hour hand ~10
+              hw = max(2, size//26)
+              ah = math.radians(-120)
+              hr = int(fr*0.50)
+              d.line([cx, cy, cx+int(hr*math.cos(ah)), cy+int(hr*math.sin(ah))], fill=HANDS, width=hw)
+
+              # Minute hand ~12
+              mw = max(1, size//38)
+              am = math.radians(-90)
+              mr = int(fr*0.68)
+              d.line([cx, cy, cx+int(mr*math.cos(am)), cy+int(mr*math.sin(am))], fill=HANDS, width=mw)
+
+              # Center dot
+              dot = max(2, size//20)
+              d.ellipse([cx-dot, cy-dot, cx+dot, cy+dot], fill=BELL)
+              return img
+
+          sizes = {'mdpi':48,'hdpi':72,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}
+          for density, s in sizes.items():
+              path = f'app/src/main/res/mipmap-{density}'
+              os.makedirs(path, exist_ok=True)
+              make_icon(s, False).save(f'{path}/ic_launcher.png')
+              make_icon(s, True ).save(f'{path}/ic_launcher_round.png')
+          print("Icons done")
+          PYEOF
+
+      - name: Setup Gradle Wrapper
+        run: |
+          gradle wrapper --gradle-version=8.11.1 --distribution-type=bin
+          chmod +x gradlew
+
+      - name: Clean build
+        run: ./gradlew clean --no-daemon
+
+      - name: Build signed release APK
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Verify APK
+        run: |
+          APK=app/build/outputs/apk/release/app-arm64-v8a-release.apk
+          if [ -f "$APK" ]; then
+            echo "✅ APK built: $(ls -lh $APK | awk '{print $5}')"
+            $ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs "$APK"
+          else
+            echo "❌ APK not found"; exit 1
+          fi
+
+      - name: Bundle release
+        run: |
+          mkdir -p AlarmG-release
+          cp app/build/outputs/apk/release/app-arm64-v8a-release.apk AlarmG-release/AlarmG.apk
+          cp AlarmEngine.kt AlarmG-release/
+          cp AlarmUI.kt     AlarmG-release/
+          cp .github/workflows/build.yml AlarmG-release/
+          cat > AlarmG-release/BUILD_INFO.txt << EOF
+          Build:     #${{ github.run_number }}
+          Commit:    ${{ github.sha }}
+          Time:      $(date -u '+%Y-%m-%d %H:%M UTC')
+          APK Size:  $(ls -lh app/build/outputs/apk/release/app-arm64-v8a-release.apk | awk '{print $5}')
+          EOF
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlarmG-${{ github.run_number }}
+          path: AlarmG-release/
+          retention-days: 30
