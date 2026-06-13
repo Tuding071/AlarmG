@@ -149,12 +149,16 @@ object AlarmScheduler {
 
     fun cancel(ctx: Context, alarm: AlarmData) {
         val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        // Must match exactly how buildPendingIntent constructs it —
+        // same request code (alarm.id) + same action so FLAG_NO_CREATE finds it
+        val intent = Intent(ctx, AlarmReceiver::class.java).apply {
+            action = ACTION_TRIGGERED
+        }
         val pi = PendingIntent.getBroadcast(
-            ctx, alarm.id,
-            Intent(ctx, AlarmReceiver::class.java),
+            ctx, alarm.id, intent,
             PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
         )
-        pi?.let { am.cancel(it) }
+        pi?.let { am.cancel(it); it.cancel() }
     }
 
     fun rescheduleAll(ctx: Context) {
@@ -203,6 +207,11 @@ class AlarmReceiver : BroadcastReceiver() {
                         }
                     }
                 }
+
+                // Guard: if alarm is disabled in storage, do not ring
+                val alarms = AlarmStore.loadAll(ctx)
+                val alarm  = alarms.find { it.id == id }
+                if (alarm != null && !alarm.isEnabled && repeatDays.isEmpty()) return
 
                 val svcIntent = Intent(ctx, AlarmRingingService::class.java).apply {
                     action = AlarmScheduler.ACTION_TRIGGERED
@@ -258,17 +267,16 @@ class AlarmRingingService : Service() {
 
             startForeground(id, buildNotification(label, id))
 
-            val am          = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            val connected   = am.isWiredHeadsetOn ||
-                              am.isBluetoothA2dpOn ||
-                              am.isBluetoothScoOn
+            val am        = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val connected = am.isWiredHeadsetOn ||
+                            am.isBluetoothA2dpOn ||
+                            am.isBluetoothScoOn
 
             if (connected) {
                 startAudio(ringtoneUri)
                 if (useVib) startVibration()
             } else {
-                // No device connected — always vibrate as fallback
-                startVibration()
+                startVibration() // fallback: no device, always vibrate
             }
 
             stopHandler.postDelayed({ stopSelf() }, AlarmScheduler.RING_DURATION_MS)
@@ -308,7 +316,7 @@ class AlarmRingingService : Service() {
     }
 
     private fun startVibration() {
-        if (vibrator != null) return // already vibrating
+        if (vibrator != null) return
         vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
         } else {
