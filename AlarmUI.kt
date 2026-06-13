@@ -76,10 +76,10 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AlarmSilentApp() {
-    val ctx = LocalContext.current
-    var alarms      by remember { mutableStateOf(AlarmStore.loadAll(ctx)) }
-    var editTarget  by remember { mutableStateOf<AlarmData?>(null) }
-    var showEditor  by remember { mutableStateOf(false) }
+    val ctx          = LocalContext.current
+    var alarms       by remember { mutableStateOf(AlarmStore.loadAll(ctx)) }
+    var editTarget   by remember { mutableStateOf<AlarmData?>(null) }
+    var showEditor   by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<AlarmData?>(null) }
 
     fun reload() { alarms = AlarmStore.loadAll(ctx) }
@@ -129,10 +129,10 @@ fun AlarmSilentApp() {
             ) {
                 Text(
                     "AlarmSilent",
-                    color = TxtPri,
-                    fontSize = 24.sp,
+                    color      = TxtPri,
+                    fontSize   = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
+                    modifier   = Modifier.weight(1f)
                 )
                 IconButton(onClick = {
                     editTarget = null
@@ -155,8 +155,8 @@ fun AlarmSilentApp() {
                 }
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    contentPadding        = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement   = Arrangement.spacedBy(10.dp)
                 ) {
                     items(alarms, key = { it.id }) { alarm ->
                         AlarmCard(
@@ -226,17 +226,17 @@ fun AlarmCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val alpha = if (alarm.isEnabled) 1f else 0.4f
+    val alpha = if (alarm.isEnabled) 1f else 0.38f
 
     Surface(
-        color  = Surf1,
-        shape  = RoundedCornerShape(14.dp),
+        color    = Surf1,
+        shape    = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left: time + meta
@@ -257,45 +257,69 @@ fun AlarmCard(
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(
-                    verticalAlignment    = Alignment.CenterVertically,
+                    verticalAlignment     = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(alarm.repeatLabel(), color = TxtSec.copy(alpha = alpha), fontSize = 12.sp)
+                    Text(
+                        alarm.repeatLabel(),
+                        color    = TxtSec.copy(alpha = alpha),
+                        fontSize = 12.sp
+                    )
                     if (alarm.useVibration) Text("📳", fontSize = 11.sp)
                 }
             }
 
-            // Right: delete | edit | toggle
+            // Right: delete | edit | divider | toggle
             Row(
-                verticalAlignment    = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                IconButton(
+                    onClick  = onDelete,
+                    modifier = Modifier.size(48.dp)
+                ) {
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Delete",
                         tint     = TxtDim,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
-                IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+
+                IconButton(
+                    onClick  = onEdit,
+                    modifier = Modifier.size(48.dp)
+                ) {
                     Icon(
                         Icons.Default.Edit,
                         contentDescription = "Edit",
                         tint     = TxtSec,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
+
+                // Divider
+                Box(
+                    Modifier
+                        .width(1.dp)
+                        .height(28.dp)
+                        .background(Surf3)
+                )
+
+                Spacer(Modifier.width(8.dp))
+
                 Switch(
-                    checked          = alarm.isEnabled,
-                    onCheckedChange  = { onToggle() },
-                    colors           = SwitchDefaults.colors(
+                    checked         = alarm.isEnabled,
+                    onCheckedChange = { onToggle() },
+                    colors          = SwitchDefaults.colors(
                         checkedThumbColor   = AccWhite,
                         checkedTrackColor   = AccGreen,
                         uncheckedThumbColor = TxtDim,
                         uncheckedTrackColor = Surf3
                     )
                 )
+
+                Spacer(Modifier.width(4.dp))
             }
         }
     }
@@ -312,19 +336,18 @@ fun AlarmEditor(
     onDismiss: () -> Unit,
     nextId: () -> Int
 ) {
-    val ctx     = LocalContext.current
-    var hour    by remember { mutableStateOf(existing?.hour   ?: 8) }
-    var minute  by remember { mutableStateOf(existing?.minute ?: 0) }
-    var isAm    by remember { mutableStateOf(existing?.isAm   ?: true) }
-    var label   by remember { mutableStateOf(existing?.label  ?: "") }
-    var useVib  by remember { mutableStateOf(existing?.useVibration ?: false) }
-    var repeat  by remember { mutableStateOf(existing?.repeatDays   ?: emptySet()) }
+    val ctx          = LocalContext.current
+    var hour         by remember { mutableStateOf(existing?.hour         ?: 8) }
+    var minute       by remember { mutableStateOf(existing?.minute       ?: 0) }
+    var isAm         by remember { mutableStateOf(existing?.isAm         ?: true) }
+    var label        by remember { mutableStateOf(existing?.label        ?: "") }
+    var useVib       by remember { mutableStateOf(existing?.useVibration ?: false) }
+    var repeat       by remember { mutableStateOf(existing?.repeatDays   ?: emptySet()) }
     var ringtoneUri  by remember { mutableStateOf(existing?.ringtoneUri) }
     var ringtoneName by remember { mutableStateOf(existing?.ringtoneName ?: "Default") }
 
     val dayLabels = listOf("S","M","T","W","T","F","S")
 
-    // System alarm tone picker
     val systemRingtoneLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -335,7 +358,6 @@ fun AlarmEditor(
         }
     }
 
-    // File picker for custom audio
     val fileLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -343,7 +365,9 @@ fun AlarmEditor(
             ctx.contentResolver.takePersistableUriPermission(
                 it, Intent.FLAG_GRANT_READ_URI_PERMISSION
             )
-            val name = it.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')
+            val name = it.lastPathSegment
+                ?.substringAfterLast('/')
+                ?.substringAfterLast(':')
                 ?: "Custom"
             ringtoneUri  = it.toString()
             ringtoneName = name
@@ -405,11 +429,11 @@ fun AlarmEditor(
 
                 // ── Label ────────────────────────────────────
                 OutlinedTextField(
-                    value           = label,
-                    onValueChange   = { label = it },
-                    placeholder     = { Text("Label (optional)", color = TxtDim, fontSize = 13.sp) },
-                    singleLine      = true,
-                    colors          = OutlinedTextFieldDefaults.colors(
+                    value         = label,
+                    onValueChange = { label = it },
+                    placeholder   = { Text("Label (optional)", color = TxtDim, fontSize = 13.sp) },
+                    singleLine    = true,
+                    colors        = OutlinedTextFieldDefaults.colors(
                         focusedTextColor     = TxtPri,
                         unfocusedTextColor   = TxtPri,
                         focusedBorderColor   = Surf3,
@@ -460,8 +484,8 @@ fun AlarmEditor(
 
                 Box {
                     Surface(
-                        color  = Surf2,
-                        shape  = RoundedCornerShape(10.dp),
+                        color    = Surf2,
+                        shape    = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { showRingtoneMenu = true }
@@ -492,14 +516,18 @@ fun AlarmEditor(
                     }
 
                     DropdownMenu(
-                        expanded        = showRingtoneMenu,
+                        expanded         = showRingtoneMenu,
                         onDismissRequest = { showRingtoneMenu = false },
-                        containerColor  = Surf2
+                        containerColor   = Surf2
                     ) {
                         DropdownMenuItem(
-                            text    = { Text("Alarm tones", color = TxtPri, fontSize = 14.sp) },
+                            text = { Text("Alarm tones", color = TxtPri, fontSize = 14.sp) },
                             leadingIcon = {
-                                Icon(Icons.Default.Alarm, null, tint = TxtSec, modifier = Modifier.size(16.dp))
+                                Icon(
+                                    Icons.Default.Alarm, null,
+                                    tint     = TxtSec,
+                                    modifier = Modifier.size(16.dp)
+                                )
                             },
                             onClick = {
                                 showRingtoneMenu = false
@@ -517,9 +545,13 @@ fun AlarmEditor(
                             }
                         )
                         DropdownMenuItem(
-                            text    = { Text("Pick from files", color = TxtPri, fontSize = 14.sp) },
+                            text = { Text("Pick from files", color = TxtPri, fontSize = 14.sp) },
                             leadingIcon = {
-                                Icon(Icons.Default.FolderOpen, null, tint = TxtSec, modifier = Modifier.size(16.dp))
+                                Icon(
+                                    Icons.Default.FolderOpen, null,
+                                    tint     = TxtSec,
+                                    modifier = Modifier.size(16.dp)
+                                )
                             },
                             onClick = {
                                 showRingtoneMenu = false
@@ -582,7 +614,12 @@ fun AlarmEditor(
                     shape  = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Surf2)
                 ) {
-                    Text("Set Alarm", color = TxtPri, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        "Set Alarm",
+                        color      = TxtPri,
+                        fontSize   = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
 
                 Spacer(Modifier.height(8.dp))
