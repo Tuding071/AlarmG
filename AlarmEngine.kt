@@ -148,9 +148,7 @@ object AlarmScheduler {
     }
 
     fun cancel(ctx: Context, alarm: AlarmData) {
-        val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        // Must match exactly how buildPendingIntent constructs it —
-        // same request code (alarm.id) + same action so FLAG_NO_CREATE finds it
+        val am     = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(ctx, AlarmReceiver::class.java).apply {
             action = ACTION_TRIGGERED
         }
@@ -195,23 +193,22 @@ class AlarmReceiver : BroadcastReceiver() {
                 val label       = intent.getStringExtra("label") ?: ""
                 val repeatDays  = intent.getIntArrayExtra("repeat_days")?.toSet() ?: emptySet()
 
-                if (id != -1) {
-                    val alarms = AlarmStore.loadAll(ctx)
-                    val idx    = alarms.indexOfFirst { it.id == id }
+                // Update storage first, then always ring —
+                // guard only for toggle-disabled alarms, not just-fired one-time alarms
+                val alarms  = AlarmStore.loadAll(ctx)
+                val idx     = alarms.indexOfFirst { it.id == id }
+                val wasEnabled = if (idx != -1) alarms[idx].isEnabled else true
+
+                if (!wasEnabled) return // toggled off by user, don't ring
+
+                if (id != -1 && idx != -1) {
                     if (repeatDays.isNotEmpty()) {
-                        if (idx != -1) AlarmScheduler.schedule(ctx, alarms[idx])
+                        AlarmScheduler.schedule(ctx, alarms[idx])
                     } else {
-                        if (idx != -1) {
-                            alarms[idx] = alarms[idx].copy(isEnabled = false)
-                            AlarmStore.saveAll(ctx, alarms)
-                        }
+                        alarms[idx] = alarms[idx].copy(isEnabled = false)
+                        AlarmStore.saveAll(ctx, alarms)
                     }
                 }
-
-                // Guard: if alarm is disabled in storage, do not ring
-                val alarms = AlarmStore.loadAll(ctx)
-                val alarm  = alarms.find { it.id == id }
-                if (alarm != null && !alarm.isEnabled && repeatDays.isEmpty()) return
 
                 val svcIntent = Intent(ctx, AlarmRingingService::class.java).apply {
                     action = AlarmScheduler.ACTION_TRIGGERED
@@ -276,7 +273,7 @@ class AlarmRingingService : Service() {
                 startAudio(ringtoneUri)
                 if (useVib) startVibration()
             } else {
-                startVibration() // fallback: no device, always vibrate
+                startVibration()
             }
 
             stopHandler.postDelayed({ stopSelf() }, AlarmScheduler.RING_DURATION_MS)
@@ -292,7 +289,6 @@ class AlarmRingingService : Service() {
                 else -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                     ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             }
-
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
